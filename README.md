@@ -136,7 +136,7 @@ The datagen container will send data to `testSteam` stream in `examples` scope o
 information please refer [Pravega-conecpt](http://pravega.io/docs/latest/pravega-concepts/))
 
 
-```
+```sql
 CREATE TABLE user_behavior (
    user_id BIGINT,
     item_id BIGINT,
@@ -161,6 +161,72 @@ CREATE TABLE user_behavior (
 )
 ```
 
+We defined 5 fields in the schema. Besides, we use `PROCTIME()` built-in function to create a processing field `proctime`.
+We also use WATERMARK grammar to declare watermark policy on `ts` field. (Out-of-order data within 5 seconds will be tolerated.) For more information about time attrubite and DDL grammar Please refer 
+
+* Time attribtue:
+https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/streaming/time_attributes.html
+
+* DDL:
+https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/sql/create.html#create-table
+
+
+Use `show tables;` and `describe user_behavior;` to check whether the table is created successfully.
+
+Then we can run `SELECT * FROM user_behavior;` in sql-client to take a glimpse of the data.
 
 
 
+## Count the transaction number per hour
+
+### Use DDL to create Elasticsearch table.
+
+We first create a ES sink table to save the `hour_of_day` and `buy_cnt`.
+
+```sql
+CREATE TABLE buy_cnt_per_hour ( 
+    hour_of_day BIGINT,
+    buy_cnt BIGINT
+) WITH (
+    'connector.type' = 'elasticsearch', -- use elasticsearch connector
+    'connector.version' = '6',  -- elasticsearch verion，6 can support es 6+ and 7+ version
+    'connector.hosts' = 'http://localhost:9200',  -- elasticsearch address
+    'connector.index' = 'buy_cnt_per_hour',  -- elasticsearch index name 
+    'connector.document-type' = 'user_behavior', -- elasticsearch type(deprecated in es7+)
+    'connector.bulk-flush.max-actions' = '1',  -- refresh with each data
+    'format.type' = 'json',  -- data output format json
+    'update-mode' = 'append'
+);
+```
+
+We don't have to create `buy_cnt_per_hour` index beforehand, Flink job will automatically create the index in es.
+
+**Attention**
+
+Please do not use `SELECT * FROM buy_cnt_per_hour`. Doing so means that you regard the es table as source table but not
+sink table. And es table only supports as sink table.
+
+
+### Submit the Query
+
+We need to use `TUMBLE` window function to group the time as windows(For more information about group window function please refer https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/sql/queries.html#group-windows ). Then we count the number of 'buy' behavior within each window and insert into the es sink table `buy_cnt_per_hour`
+
+```
+INSERT INTO buy_cnt_per_hour
+SELECT HOUR(TUMBLE_START(ts, INTERVAL '1' HOUR)), COUNT(*)
+FROM user_behavior
+WHERE behavior = 'buy'
+GROUP BY TUMBLE(ts, INTERVAL '1' HOUR);
+```
+
+When the query is submitted, you can see a new Flink job is submitted in Flink Web UI.
+
+### Kibana for visualization
+
+1.Create Index Pattern in kibana with the `buy_cnt_per_hour` es index.
+
+2.Create `Area` type Dashboard called `User behavior log analysis` with the `buy_cnt_per_hour` index.
+The specific configuration of dashboard can be seen in the following screenshot.
+
+
+TBC.
