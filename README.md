@@ -175,6 +175,7 @@ Use `show tables;` and `describe user_behavior;` to check whether the table is c
 
 Then we can run `SELECT * FROM user_behavior;` in sql-client to take a glimpse of the data.
 
+![SAMPLE1](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-21%2016-44-09.png)
 
 
 ## Count the transaction number per hour
@@ -221,12 +222,19 @@ GROUP BY TUMBLE(ts, INTERVAL '1' HOUR);
 
 When the query is submitted, you can see a new Flink job is submitted in Flink Web UI.
 
+![FLINK WEB UI](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-21%2017-09-25.png)
+
+
 ### Kibana for visualization
 
 1.Create Index Pattern in kibana with the `buy_cnt_per_hour` es index.
 
+![index pattern](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-21%2017-18-54.png)
+
 2.Create `Area` type Dashboard called `User behavior log analysis` with the `buy_cnt_per_hour` index.
 The specific configuration of dashboard can be seen in the following screenshot.
+
+![visresult1](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-21%2017-22-44.png)
 
 
 TBC.
