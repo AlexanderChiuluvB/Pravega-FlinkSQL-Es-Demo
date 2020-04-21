@@ -10,17 +10,26 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.TimeZone;
 
-public class sender{
+public class sender {
 
     private static final String DEFAULT_SCOPE = "examples";
     private static final String DEFAULT_STREAM = "testStream";
     private static final String Default_controllerURI = "tcp://127.0.0.1:9090";
     private final static TimeZone tz = TimeZone.getTimeZone("Asia/Shanghai");
 
-    public static void main(String [] args) throws IOException {
+    public static void main(String[] args) throws IOException {
 
-        File userBehaviorFile = new File("/home/alex/user_behavior.log");
-        long speed = 1000L;
+        // --input
+        String arg0 = args[0];
+        // input file
+        String arg1 = args[1];
+        // --speedup
+        String arg2 = args[2];
+        // speed
+        long arg3 = Long.parseLong(args[3]);
+
+        File userBehaviorFile = new File(arg1);
+        long speed = arg3 == 0 ? 1000L : arg3;
 
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(Default_controllerURI))
@@ -43,7 +52,7 @@ public class sender{
                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
                 int counter = 0;
                 long start = System.nanoTime();
-                while(true) {
+                while (true) {
                     while (reader.ready()) {
                         String line = reader.readLine();
                         String[] splits = line.split(",");
