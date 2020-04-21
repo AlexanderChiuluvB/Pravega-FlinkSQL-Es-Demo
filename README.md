@@ -105,7 +105,9 @@ Finally, you can use the following command to stop all the containers.
 ### Download and install Flink 1.10
 
 1.Download Flink 1.10.0 ：https://www.apache.org/dist/flink/flink-1.10.0/flink-1.10.0-bin-scala_2.12.tgz
+
 2.`cd flink-1.10.0`
+
 3.Download the following jars and copy them to lib/
 ```
 
@@ -119,9 +121,45 @@ wget -P ./lib/ https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.48/
 Add Flink pravega connector jar URL. 写作本文时候bugfix版本仍未发布。
 
 4.Modify ` taskmanager.numberOfTaskSlots` as 10 in `conf/flink-conf.yaml` since we will launch multiple tasks in Flink.
+
 5.`./bin/start-cluster.sh` start the Flink cluster.
 If succeed, you can visited Flink Web UI in http://localhost:8081.
+
 6.`bin/sql-client.sh embedded ` to start the FlinkSQL client.
+
+
+### Create Pravega Table with DDL
+
+The datagen container will send data to `testSteam` stream in `examples` scope of Pravega.
+
+(You can compare the `stream` concept in Pravega with the `topic` conecpt in Kafka, and scope is namespace in Pravega. For more
+information please refer [Pravega-conecpt](http://pravega.io/docs/latest/pravega-concepts/))
+
+
+```
+CREATE TABLE user_behavior (
+   user_id BIGINT,
+    item_id BIGINT,
+    category_id BIGINT,
+    behavior STRING,
+    ts TIMESTAMP(3),
+    proctime as PROCTIME(),
+    WATERMARK FOR ts as ts - INTERVAL '5' SECOND
+) WITH (
+  'update-mode' = 'append',
+  'connector.type' = 'pravega',
+  'connector.version' = '1',
+  'connector.metrics' = 'true',
+  'connector.connection-config.controller-uri' = 'tcp://localhost:9090',
+  'connector.connection-config.default-scope' = 'examples',
+  'connector.reader.stream-info.0.stream' = 'testStream',
+  'connector.writer.stream' = 'testStream',
+  'connector.writer.mode' = 'atleast_once',
+  'connector.writer.txn-lease-renewal-interval' = '10000',
+  'format.type' = 'json',
+  'format.fail-on-missing-field' = 'false'
+)
+```
 
 
 
