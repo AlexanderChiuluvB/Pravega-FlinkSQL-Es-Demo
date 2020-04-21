@@ -31,7 +31,7 @@ services:
     command: "standalone"
     network_mode: host
   datagen:
-    image: 16307110258/datagen:0.1
+    image: brianzhou/datagen:0.1
     command: "java -classpath /opt/datagen/datagen.jar sender --input /opt/datagen/user_behavior.log --speedup 1000"
     depends_on:
       - pravega
