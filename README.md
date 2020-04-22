@@ -367,6 +367,6 @@ GROUP BY category_name;
 2.Create `Horizontal Bar` type Dashboard called `top_category_analysis` with the `top_category` index.
 The specific configuration of dashboard can be seen in the following screenshot.
 
-![category_result](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-22%2011-45-51.png)
+![category_result](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-22%2012-16-31.png)
 
 
