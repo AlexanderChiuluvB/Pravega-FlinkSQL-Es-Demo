@@ -212,7 +212,7 @@ sink table. And es table only supports as sink table.
 
 We need to use `TUMBLE` window function to group the time as windows(For more information about group window function please refer https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/sql/queries.html#group-windows ). Then we count the number of 'buy' behavior within each window and insert into the es sink table `buy_cnt_per_hour`
 
-```
+```sql
 INSERT INTO buy_cnt_per_hour
 SELECT HOUR(TUMBLE_START(ts, INTERVAL '1' HOUR)), COUNT(*)
 FROM user_behavior
@@ -237,4 +237,134 @@ The specific configuration of dashboard can be seen in the following screenshot.
 ![visresult1](https://github.com/AlexanderChiuluvB/Pravega-FlinkSQL-Es-Demo/blob/master/pic/Screenshot%20from%202020-04-21%2017-22-44.png)
 
 
-TBC.
+## Count cumulative user numbers per 10 mins
+
+First we create a es sink table called cumulative_uv
+
+```sql
+CREATE TABLE cumulative_uv (
+    time_str STRING,
+    uv BIGINT
+) WITH (
+    'connector.type' = 'elasticsearch',
+    'connector.version' = '6',
+    'connector.hosts' = 'http://localhost:9200',
+    'connector.index' = 'cumulative_uv',
+    'connector.document-type' = 'user_behavior',
+    'format.type' = 'json',
+    'update-mode' = 'upsert'
+);
+```
+
+Here we use `CREATE VIEW` to register a logical view.
+
+Then we use `SUBSTR`,`DATE_FORMAT` and `||` built-in function to transform the TIMESTAMP field
+to a 10-minute unit time string like `12:10`, `12:20`. More information about OVER WINDOW please refer
+to https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/sql/queries.html#aggregations
+
+```sql
+CREATE VIEW uv_per_10min AS
+SELECT 
+  MAX(SUBSTR(DATE_FORMAT(ts, 'HH:mm'),1,4) || '0') OVER w AS time_str, 
+  COUNT(DISTINCT user_id) OVER w AS uv
+FROM user_behavior
+WINDOW w AS (ORDER BY proctime ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+```
+
+Finally we submit the query.
+
+```sql
+INSERT INTO cumulative_uv
+SELECT time_str, MAX(uv)
+FROM uv_per_10min
+GROUP BY time_str;
+```
+
+### Kibana for visualization
+
+1.Create Index Pattern in kibana with the `cumulative_uv` es index.
+
+2.Create `Line` type Dashboard called `independent_user_analysis` with the `cumulative_uv` index.
+The specific configuration of dashboard can be seen in the following screenshot.
+
+
+## Category billboard
+
+The mysql container have already created a dimension table with the subcategory and parent category mapping data.
+
+First we create a MySQL table in SQL CLI for dimension table query.
+
+```sql
+CREATE TABLE category_dim (
+    sub_category_id BIGINT,  
+    parent_category_id BIGINT 
+) WITH (
+    'connector.type' = 'jdbc',
+    'connector.url' = 'jdbc:mysql://localhost:3306/flink',
+    'connector.table' = 'category',
+    'connector.driver' = 'com.mysql.jdbc.Driver',
+    'connector.username' = 'root',
+    'connector.password' = '123456',
+    'connector.lookup.cache.max-rows' = '5000',
+    'connector.lookup.cache.ttl' = '10min'
+);
+```
+
+Then we create an es sink table.
+
+```sql
+CREATE TABLE top_category (
+    category_name STRING,  
+    buy_cnt BIGINT  
+) WITH (
+    'connector.type' = 'elasticsearch',
+    'connector.version' = '6',
+    'connector.hosts' = 'http://localhost:9200',
+    'connector.index' = 'top_category',
+    'connector.document-type' = 'user_behavior',
+    'format.type' = 'json',
+    'update-mode' = 'upsert'
+);
+
+```
+
+Next we create a view called rich_user_behavior and use TEMPORAL JOIN grammar to associate
+the dimension table. For more information about TEMPORAL JOIN grammar please refer to https://ci.apache.org/projects/flink/flink-docs-release-1.10/dev/table/streaming/joins.html#join-with-a-temporal-table.
+
+```sql
+CREATE VIEW rich_user_behavior AS
+SELECT U.user_id, U.item_id, U.behavior, 
+  CASE C.parent_category_id
+    WHEN 1 THEN 'shoes'
+    WHEN 2 THEN 'clothing'
+    WHEN 3 THEN 'electrical appliances'
+    WHEN 4 THEN 'beauty makeup'
+    WHEN 5 THEN 'maternal and child product'
+    WHEN 6 THEN '3C digital'
+    WHEN 7 THEN 'outdoor gears'
+    WHEN 8 THEN 'food'
+    ELSE 'others'
+  END AS category_name
+FROM user_behavior AS U LEFT JOIN category_dim FOR SYSTEM_TIME AS OF U.proctime AS C
+ON U.category_id = C.sub_category_id;
+```
+
+Finally we can group the data with category name and insert the result into sink table.
+
+```sql
+INSERT INTO top_category
+SELECT category_name, COUNT(*) buy_cnt
+FROM rich_user_behavior
+WHERE behavior = 'buy'
+GROUP BY category_name;
+```
+
+### Kibana for visualization
+
+1.Create Index Pattern in kibana with the `top_category` es index.
+
+2.Create `Horizontal Bar` type Dashboard called `top_category_analysis` with the `top_category` index.
+The specific configuration of dashboard can be seen in the following screenshot.
+
+
+
